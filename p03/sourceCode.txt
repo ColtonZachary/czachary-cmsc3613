@@ -1,0 +1,327 @@
+LazyBinarySearchTree.h
+
+#ifndef LAZYBINARYSEARCHTREE_H
+#define LAZYBINARYSEARCHTREE_H
+
+#include <string>
+#include "TreeNode.h"
+
+class LazyBinarySearchTree {
+private:
+    TreeNode* root;
+
+    void destroy(TreeNode* n);
+
+    bool insertHelper(TreeNode*& n, int key);
+    TreeNode* search(TreeNode* n, int key) const;
+
+    int findMinHelper(TreeNode* n) const;
+    int findMaxHelper(TreeNode* n) const;
+
+    int heightHelper(TreeNode* n) const; 
+    int sizeHelper(TreeNode* n) const;
+
+    void printHelper(TreeNode* n, std::string& out) const;
+
+public:
+    LazyBinarySearchTree();
+    ~LazyBinarySearchTree();
+
+    bool insert(int key);
+    bool remove(int key);
+    bool contains(int key) const;
+
+    int findMin() const;
+    int findMax() const;
+
+    int height() const;
+    int size() const;
+
+    std::string print() const; 
+};
+
+#endif
+
+LazyBinarySearchTree.cpp
+
+#include "LazyBinarySearchTree.h"
+#include <algorithm>
+
+LazyBinarySearchTree::LazyBinarySearchTree() {
+    root = nullptr;
+}
+
+LazyBinarySearchTree::~LazyBinarySearchTree() {
+    destroy(root);
+    root = nullptr;
+}
+
+void LazyBinarySearchTree::destroy(TreeNode* n) {
+    if (n == nullptr) return;
+    destroy(n->left);
+    destroy(n->right);
+    delete n;
+}
+
+TreeNode* LazyBinarySearchTree::search(TreeNode* n, int key) const {
+    if (n == nullptr) return nullptr;
+    if (key < n->key) return search(n->left, key);
+    if (key > n->key) return search(n->right, key);
+    return n;
+}
+
+bool LazyBinarySearchTree::insertHelper(TreeNode*& n, int key) {
+    if (n == nullptr) {
+        n = new TreeNode(key);
+        return true;
+    }
+
+    if (key < n->key) return insertHelper(n->left, key);
+    if (key > n->key) return insertHelper(n->right, key);
+
+    if (n->deleted) {
+        n->deleted = false; 
+        return true;        
+    }
+    return false;           
+}
+
+bool LazyBinarySearchTree::insert(int key) {
+    return insertHelper(root, key);
+}
+
+bool LazyBinarySearchTree::remove(int key) {
+    TreeNode* n = search(root, key);
+    if (n == nullptr) return false;
+    if (n->deleted) return false;
+    n->deleted = true;
+    return true;
+}
+
+bool LazyBinarySearchTree::contains(int key) const {
+    TreeNode* n = search(root, key);
+    return (n != nullptr && n->deleted == false);
+}
+
+int LazyBinarySearchTree::findMinHelper(TreeNode* n) const {
+    if (n == nullptr) return -1;
+
+    int leftMin = findMinHelper(n->left);
+    if (leftMin != -1) return leftMin;
+
+    if (!n->deleted) return n->key;
+
+    return findMinHelper(n->right);
+}
+
+int LazyBinarySearchTree::findMin() const {
+    return findMinHelper(root);
+}
+
+int LazyBinarySearchTree::findMaxHelper(TreeNode* n) const {
+    if (n == nullptr) return -1;
+
+    int rightMax = findMaxHelper(n->right);
+    if (rightMax != -1) return rightMax;
+
+    if (!n->deleted) return n->key;
+
+    return findMaxHelper(n->left);
+}
+
+int LazyBinarySearchTree::findMax() const {
+    return findMaxHelper(root);
+}
+
+int LazyBinarySearchTree::heightHelper(TreeNode* n) const {
+    if (n == nullptr) return -1;
+    return 1 + std::max(heightHelper(n->left), heightHelper(n->right));
+}
+
+int LazyBinarySearchTree::height() const {
+    return heightHelper(root);
+}
+
+int LazyBinarySearchTree::sizeHelper(TreeNode* n) const {
+    if (n == nullptr) return 0;
+    return 1 + sizeHelper(n->left) + sizeHelper(n->right);
+}
+
+int LazyBinarySearchTree::size() const {
+    return sizeHelper(root);
+}
+
+void LazyBinarySearchTree::printHelper(TreeNode* n, std::string& out) const {
+    if (n == nullptr) return;
+
+    if (!out.empty()) out += " ";
+
+    if (n->deleted) out += "*";
+    out += std::to_string(n->key);
+
+    printHelper(n->left, out);
+    printHelper(n->right, out);
+}
+
+std::string LazyBinarySearchTree::print() const {
+    std::string out = "";
+    printHelper(root, out);
+    return out;
+}
+
+TreeNode.h
+
+#ifndef TREENODE_H
+#define TREENODE_H
+
+class TreeNode {
+public:
+    int key;
+    bool deleted;
+    TreeNode* left;
+    TreeNode* right;
+
+    TreeNode(int k) {
+        key = k;
+        deleted = false;
+        left = nullptr;
+        right = nullptr;
+    }
+};
+
+#endif
+
+p03.cpp
+
+#include <fstream>
+#include <iostream>
+#include <string>
+#include <cctype>
+#include "LazyBinarySearchTree.h"
+
+using namespace std;
+
+static string trim(const string& s) {
+    int i = 0;
+    while (i < (int)s.size() && isspace((unsigned char)s[i])) i++;
+
+    int j = (int)s.size() - 1;
+    while (j >= i && isspace((unsigned char)s[j])) j--;
+
+    if (j < i) return "";
+    return s.substr(i, j - i + 1);
+}
+
+static bool parseIntStrict(const string& s, int& out) {
+    string t = trim(s);
+    if (t == "") return false;
+
+    int start = 0;
+    if (t[0] == '+' || t[0] == '-') start = 1;
+    if (start >= (int)t.size()) return false;
+
+    for (int i = start; i < (int)t.size(); i++) {
+        if (!isdigit((unsigned char)t[i])) return false;
+    }
+
+    try {
+        out = stoi(t);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+static bool inRange(int k) { return (k >= 1 && k <= 99); }
+
+static void outBool(ofstream& fout, bool b) {
+    fout << (b ? "true" : "false") << "\n";
+}
+
+int main(int argc, char* argv[]) {
+    if (argc != 3) {
+        cerr << "Usage: " << argv[0] << " input.dat output.dat\n";
+        return 1;
+    }
+
+    ifstream fin(argv[1]);
+    ofstream fout(argv[2]);
+
+    if (!fin) { cerr << "Cannot open input file\n"; return 1; }
+    if (!fout) { cerr << "Cannot open output file\n"; return 1; }
+
+    LazyBinarySearchTree tree;
+    string line;
+
+    while (getline(fin, line)) {
+        string s = trim(line);
+        if (s == "") continue;
+
+        size_t pos = s.find(':');
+        string cmd = (pos == string::npos) ? s : trim(s.substr(0, pos));
+        string arg = (pos == string::npos) ? "" : trim(s.substr(pos + 1));
+
+        if (cmd == "insert" || cmd == "remove" || cmd == "contains") {
+            if (pos == string::npos || arg == "") {
+                fout << "Error: " << cmd << " (no key)\n";
+                continue;
+            }
+
+            int key = 0;
+            if (!parseIntStrict(arg, key)) {
+                fout << "Error: " << cmd << " (invalid argument)\n";
+                continue;
+            }
+
+            if (!inRange(key)) {
+                fout << "Error: " << cmd << " (illegal argument: not in range)\n";
+                continue;
+            }
+
+            if (cmd == "insert") outBool(fout, tree.insert(key));
+            else if (cmd == "remove") outBool(fout, tree.remove(key));
+            else outBool(fout, tree.contains(key));
+        }
+        else if (cmd == "print") {
+            if (pos != string::npos) { fout << "Error: " << s << " (invalid command)\n"; continue; }
+            fout << tree.print() << "\n";
+        }
+        else if (cmd == "findMin") {
+            if (pos != string::npos) { fout << "Error: " << s << " (invalid command)\n"; continue; }
+            fout << tree.findMin() << "\n";
+        }
+        else if (cmd == "findMax") {
+            if (pos != string::npos) { fout << "Error: " << s << " (invalid command)\n"; continue; }
+            fout << tree.findMax() << "\n";
+        }
+        else if (cmd == "height") {
+            if (pos != string::npos) { fout << "Error: " << s << " (invalid command)\n"; continue; }
+            fout << tree.height() << "\n";
+        }
+        else if (cmd == "size") {
+            if (pos != string::npos) { fout << "Error: " << s << " (invalid command)\n"; continue; }
+            fout << tree.size() << "\n";
+        }
+        else {
+            fout << "Error: " << cmd << " (invalid command)\n";
+        }
+    }
+    return 0;
+}
+
+Makefile
+
+p03: p03.o LazyBinarySearchTree.o
+	g++ -o p03 p03.o LazyBinarySearchTree.o
+
+p03.o: p03.cpp LazyBinarySearchTree.h TreeNode.h
+	g++ -c p03.cpp
+
+LazyBinarySearchTree.o: LazyBinarySearchTree.cpp LazyBinarySearchTree.h TreeNode.h
+	g++ -c LazyBinarySearchTree.cpp
+
+run: p03
+	./p03 input.dat output.dat
+
+clean:
+	rm -f p03 *.o

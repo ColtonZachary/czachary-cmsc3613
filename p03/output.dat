@@ -1,0 +1,21 @@
+true
+true
+true
+true
+98 67 55 45
+false
+true
+false
+55
+98
+98 67 55 *45
+3
+4
+true
+true
+false
+98 67 55 *45 32 84
+32
+Error: insert (illegal argument: not in range)
+Error: insert (no key)
+Error: hiha (invalid command)

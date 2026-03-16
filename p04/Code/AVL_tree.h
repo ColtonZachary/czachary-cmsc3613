@@ -1,0 +1,498 @@
+template <class Record>
+class AVL_tree: public Search_tree<Record> {
+public:
+   Error_code insert(const Record &new_data);
+   Error_code remove(const Record &old_data);
+protected:
+   //  Auxiliary functions
+   Error_code avl_insert(Binary_node<Record>* &sub_root, const Record &new_data, bool &taller);
+   Error_code avl_delete(Binary_node<Record>* &sub_root, const Record &target, bool &shorter);
+   void left_balance(Binary_node<Record>* &sub_root);
+   void right_balance(Binary_node<Record>* &sub_root);
+   void rotate_left(Binary_node<Record>* &sub_root);
+   void rotate_right(Binary_node<Record>* &sub_root);
+};
+
+template <class Record>
+Error_code AVL_tree<Record>::insert(const Record &new_data)
+/*
+Post: If the key of new_data is already in the AVL_tree, a code
+      of duplicate_error is returned.
+      Otherwise, a code of success is returned and the Record new_data
+      is inserted into the tree in such a way that the properties of
+      an AVL tree are preserved.
+Uses: avl_insert.
+*/
+{
+   bool taller;
+   return avl_insert(this->root, new_data, taller);
+}
+
+template <class Record>
+Error_code AVL_tree<Record>::remove(const Record &target)
+/*
+Post: If a Record with a key matching that of target belongs to the
+      AVL_tree, a code of success is returned, and the corresponding node
+      is removed from the tree.  Otherwise, a code of not_present is returned.
+Uses: Function search_and_destroy
+*/
+{
+   bool shorter;
+   return avl_delete(this->root, target, shorter);
+}
+
+template <class Record>
+Error_code AVL_tree<Record>::avl_insert(Binary_node<Record>* &sub_root,
+           const Record &new_data, bool &taller)
+/*
+Pre:  sub_root is either NULL or points to a subtree of the AVL_tree
+Post: If the key of new_data is already in the subtree, a
+      code of duplicate_error is returned.
+      Otherwise, a code of success is returned and the Record new_data
+      is inserted into the subtree in such a way that the
+      properties of an AVL tree have been preserved.
+      If the subtree is increased in height, the parameter taller is set to
+      true; otherwise it is set to false.
+Uses: Methods of struct AVL_node; functions avl_insert
+      recursively, left_balance, and right_balance.
+*/
+{
+   Error_code result = success;
+   if (sub_root == NULL) {
+      sub_root = new AVL_node<Record>(new_data);
+      taller = true;  //taller is true for every new node creation
+   }
+   else if (new_data == sub_root->data) {
+      result = duplicate_error;
+      taller = false;
+   }
+   //insert to LST
+   else if (new_data < sub_root->data) {         
+      result = avl_insert(sub_root->left, new_data, taller);
+      if (taller == true)
+		switch (sub_root->get_balance()) {
+         case left_higher: //lh before insertion, now unbalanced
+            left_balance(sub_root);
+            taller = false;       
+            break;
+		 case equal_height: 
+            sub_root->set_balance(left_higher);
+            break;  
+         case right_higher:
+            sub_root->set_balance(equal_height);
+            taller = false;
+            break;
+         }
+   }
+   //insert to RST
+   else {                                     
+      result = avl_insert(sub_root->right, new_data, taller);
+      if (taller == true)
+         switch (sub_root->get_balance()) {
+         case left_higher:
+            sub_root->set_balance(equal_height);
+            taller = false;
+            break;
+         case equal_height:
+            sub_root->set_balance(right_higher);
+            break;
+         case right_higher: 
+            right_balance(sub_root);
+            taller = false;        
+            break;
+         }
+   }
+   return result;
+}
+
+template <class Record>
+void AVL_tree<Record>::right_balance(Binary_node<Record> *&sub_root)
+/*
+Pre:  sub_root points to a subtree of an AVL_tree that
+      is unbalanced on the right.
+Post: The AVL properties have been restored to the subtree.
+*/
+{
+   Binary_node<Record>* &right_tree = sub_root->right;
+
+   switch (right_tree->get_balance()) {
+   // case right_higher: sigle left rotation
+   // O  ub --> subroot
+   //  \
+   //   O  rh  --> right_tree
+   //    \
+   //     O
+   case right_higher:  //  single left rotation
+      sub_root->set_balance(equal_height);
+      right_tree->set_balance(equal_height);
+      rotate_left(sub_root); //pointer adjustment
+      break;
+   case equal_height:  //  impossible case
+      cout << "WARNING: If you see this in an insertion, program error is detected in right_balance" << endl;
+      break;
+   // case left_higher: double rotation left
+   // O ub --> sub_root
+   //  \
+   //   O lh --> right_tree
+   //  /
+   // O three cases --> sub_tree
+   case left_higher:                           
+      Binary_node<Record> *sub_tree = right_tree->left;
+	  //set balance of sub_root and right_tree assuming rotation is done
+      switch (sub_tree->get_balance()) {
+      case equal_height:
+         sub_root->set_balance(equal_height);
+         right_tree->set_balance(equal_height);
+         break;
+      case left_higher:
+         sub_root->set_balance(equal_height);
+         right_tree->set_balance(right_higher);
+         break;
+      case right_higher:
+         sub_root->set_balance(left_higher);
+         right_tree->set_balance(equal_height);
+         break;
+      }
+	  //set balance of sub_tree after rotation
+      sub_tree->set_balance(equal_height);
+	  //perform actual rotation
+      rotate_right(right_tree);
+      rotate_left(sub_root);
+      break;
+   }
+}
+
+template <class Record>
+void AVL_tree<Record>::rotate_left(Binary_node<Record> *&sub_root)
+/*
+Pre:  sub_root points to a subtree of the AVL_tree.
+      This subtree has a nonempty right subtree.
+Post: sub_root is reset to point to its former right child, and the former
+      sub_root node is the left child of the new sub_root node.
+*/
+{
+   if (sub_root == NULL || sub_root->right == NULL)     //  impossible cases
+      cout << "WARNING: program error detected in rotate_left" << endl;
+   else {
+      Binary_node<Record> *right_tree = sub_root->right;
+      sub_root->right = right_tree->left;
+      right_tree->left = sub_root;
+      sub_root = right_tree;
+   }
+}
+
+template <class Record>
+void AVL_tree<Record>::rotate_right(Binary_node<Record> *&sub_root)
+/*
+Pre:  sub_root points to a subtree of the AVL_tree.
+      This subtree has a nonempty left subtree.
+Post: sub_root is reset to point to its former left child, and the former
+      sub_root node is the right child of the new sub_root node.
+*/
+{
+   // TODO 1
+   if (sub_root == NULL || sub_root->left == NULL)     //  impossible cases
+      cout << "WARNING: Program error detected in rotate_right" << endl; 
+   else {
+      Binary_node<Record> *left_tree = sub_root->left; // pointer to left child of sub_root
+      sub_root->left = left_tree->right; // left child of sub_root becomes right child of left_tree
+      left_tree->right = sub_root; // sub_root becomes right child of left_tree
+      sub_root = left_tree; // sub_root now points to left_tree, which is the new root of the subtree
+   }
+   
+
+}
+
+template <class Record>
+void AVL_tree<Record>::left_balance(Binary_node<Record>* &sub_root)
+/*
+Pre:  sub_root points to a subtree of an AVL_tree that
+      is doubly unbalanced on the left.
+Post: The AVL properties have been restored to the subtree.   
+*/
+{
+   // TODO 2
+   Binary_node<Record>* &left_tree = sub_root->left; // pointer to left child of sub_root
+
+   switch (left_tree->get_balance()) { // check balance of left child of sub_root
+
+   // single right rotation
+   case left_higher: 
+      sub_root->set_balance(equal_height);
+      left_tree->set_balance(equal_height);
+      rotate_right(sub_root);
+      break;
+
+   case equal_height:
+      cout << "WARNING: Program error is detected in left_balance" << endl;
+      break;
+
+   // double rotation
+   case right_higher:
+      Binary_node<Record>* sub_tree = left_tree->right;
+
+      switch (sub_tree->get_balance()) { // check balance of left_tree's right child
+      case equal_height: // sub_tree is the new root of the subtree after rotation, so its balance will be equal_height
+         sub_root->set_balance(equal_height); // sub_root becomes child of sub_tree, so its balance will be equal_height
+         left_tree->set_balance(equal_height); // left_tree becomes child of sub_tree, so its balance will be equal_height
+         break;
+
+      case left_higher: // sub_tree is left child of left_tree, so left_tree becomes right_higher and sub_root becomes left_higher
+         sub_root->set_balance(right_higher);
+         left_tree->set_balance(equal_height);
+         break;
+
+      case right_higher: // sub_tree is right child of left_tree, so left_tree becomes equal_height and sub_root becomes left_higher
+         sub_root->set_balance(equal_height);
+         left_tree->set_balance(left_higher);
+         break;
+      }
+
+      sub_tree->set_balance(equal_height);
+
+      rotate_left(left_tree);
+      rotate_right(sub_root);
+      break;
+   }
+
+
+}
+
+template <class Record>
+Error_code AVL_tree<Record>::avl_delete(Binary_node<Record>* &sub_root,
+           const Record &target, bool &shorter)
+{
+   Error_code result = success;
+   
+   // TODO 3: bonus task
+   if (sub_root == NULL) { // target not found
+      shorter = false;
+      return not_present;
+   }
+
+   // search left
+   if (target < sub_root->data) { // target is in left subtree
+      result = avl_delete(sub_root->left, target, shorter); // recursively delete target from left subtree
+ 
+      if (shorter == true) { // left subtree is shorter after deletion, check balance of sub_root
+         switch (sub_root->get_balance()) { // check balance of sub_root
+         case left_higher: // left subtree was higher before deletion, now it is balanced
+            sub_root->set_balance(equal_height); 
+            shorter = true;
+            break;
+
+         case equal_height: // left subtree was balanced before deletion, now it is higher
+            sub_root->set_balance(right_higher);
+            shorter = false;
+            break;
+
+         case right_higher: { // left subtree was lower before deletion, now it is unbalanced
+            Binary_node<Record>* &right_tree = sub_root->right;
+
+            switch (right_tree->get_balance()) { // check balance of right child of sub_root
+            case right_higher: // right subtree is higher, so after rotation, sub_root becomes balanced and right_tree becomes balanced
+               sub_root->set_balance(equal_height);
+               right_tree->set_balance(equal_height);
+               rotate_left(sub_root);
+               shorter = true;
+               break;
+
+            case equal_height: // right subtree is balanced, so after rotation, sub_root becomes right_higher and right_tree becomes left_higher
+               sub_root->set_balance(right_higher);
+               right_tree->set_balance(left_higher);
+               rotate_left(sub_root);
+               shorter = false;
+               break;
+
+            case left_higher: { 
+               Binary_node<Record>* sub_tree = right_tree->left;
+
+               switch (sub_tree->get_balance()) { // check balance of right_tree's left child
+               case equal_height:
+                  sub_root->set_balance(equal_height);
+                  right_tree->set_balance(equal_height);
+                  break;
+               case left_higher:
+                  sub_root->set_balance(equal_height);
+                  right_tree->set_balance(right_higher);
+                  break;
+               case right_higher:
+                  sub_root->set_balance(left_higher);
+                  right_tree->set_balance(equal_height);
+                  break;
+               }
+
+               sub_tree->set_balance(equal_height);
+               rotate_right(right_tree);
+               rotate_left(sub_root);
+               shorter = true;
+               break;
+            }
+            }
+            break;
+         }
+         }
+      }
+   }
+
+   // search right
+   else if (target > sub_root->data) {// target is in right subtree
+      result = avl_delete(sub_root->right, target, shorter);
+
+      if (shorter == true) {
+         switch (sub_root->get_balance()) {
+         case right_higher:
+            sub_root->set_balance(equal_height);
+            shorter = true;
+            break;
+
+         case equal_height:
+            sub_root->set_balance(left_higher);
+            shorter = false;
+            break;
+
+         case left_higher: {
+            Binary_node<Record>* &left_tree = sub_root->left;
+
+            switch (left_tree->get_balance()) {
+            case left_higher:
+               sub_root->set_balance(equal_height);
+               left_tree->set_balance(equal_height);
+               rotate_right(sub_root);
+               shorter = true;
+               break;
+
+            case equal_height:
+               sub_root->set_balance(left_higher);
+               left_tree->set_balance(right_higher);
+               rotate_right(sub_root);
+               shorter = false;
+               break;
+
+            case right_higher: {
+               Binary_node<Record>* sub_tree = left_tree->right;
+
+               switch (sub_tree->get_balance()) {
+               case equal_height:
+                  sub_root->set_balance(equal_height);
+                  left_tree->set_balance(equal_height);
+                  break;
+               case left_higher:
+                  sub_root->set_balance(right_higher);
+                  left_tree->set_balance(equal_height);
+                  break;
+               case right_higher:
+                  sub_root->set_balance(equal_height);
+                  left_tree->set_balance(left_higher);
+                  break;
+               }
+
+               sub_tree->set_balance(equal_height);
+               rotate_left(left_tree);
+               rotate_right(sub_root);
+               shorter = true;
+               break;
+            }
+            }
+            break;
+         }
+         }
+      }
+   }
+
+   // found target
+   else { // target is in current node
+      Binary_node<Record>* to_delete = sub_root;
+
+      // no right child
+      if (sub_root->right == NULL) {
+         sub_root = sub_root->left;
+         delete to_delete;
+         to_delete = nullptr;
+         shorter = true;
+      }
+
+      // no left child
+      else if (sub_root->left == NULL) {
+         sub_root = sub_root->right;
+         delete to_delete;
+         to_delete = nullptr;
+         shorter = true;
+      }
+
+      // two children
+      else {
+         Binary_node<Record>* predecessor = sub_root->left;
+         while (predecessor->right != NULL) {
+            predecessor = predecessor->right;
+         }
+
+         sub_root->data = predecessor->data;
+         result = avl_delete(sub_root->left, predecessor->data, shorter);
+
+         if (shorter == true) {
+            switch (sub_root->get_balance()) {
+            case left_higher:
+               sub_root->set_balance(equal_height);
+               shorter = true;
+               break;
+
+            case equal_height:
+               sub_root->set_balance(right_higher);
+               shorter = false;
+               break;
+
+            case right_higher: {
+               Binary_node<Record>* &right_tree = sub_root->right;
+
+               switch (right_tree->get_balance()) {
+               case right_higher:
+                  sub_root->set_balance(equal_height);
+                  right_tree->set_balance(equal_height);
+                  rotate_left(sub_root);
+                  shorter = true;
+                  break;
+
+               case equal_height:
+                  sub_root->set_balance(right_higher);
+                  right_tree->set_balance(left_higher);
+                  rotate_left(sub_root);
+                  shorter = false;
+                  break;
+
+               case left_higher: {
+                  Binary_node<Record>* sub_tree = right_tree->left;
+
+                  switch (sub_tree->get_balance()) {
+                  case equal_height:
+                     sub_root->set_balance(equal_height);
+                     right_tree->set_balance(equal_height);
+                     break;
+                  case left_higher:
+                     sub_root->set_balance(equal_height);
+                     right_tree->set_balance(right_higher);
+                     break;
+                  case right_higher:
+                     sub_root->set_balance(left_higher);
+                     right_tree->set_balance(equal_height);
+                     break;
+                  }
+
+                  sub_tree->set_balance(equal_height);
+                  rotate_right(right_tree);
+                  rotate_left(sub_root);
+                  shorter = true;
+                  break;
+               }
+               }
+               break;
+            }
+            }
+         }
+      }
+   }
+
+
+
+   return result;
+}
